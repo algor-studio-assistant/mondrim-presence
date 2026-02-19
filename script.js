@@ -4,10 +4,95 @@ window.onload = function () {
     paper.setup('canvas');
 
     var N = 1024;
+    var W, H, CX, CY;
+
+    function sync() {
+        W  = view.size.width;
+        H  = view.size.height;
+        CX = view.center.x;
+        CY = view.center.y;
+    }
+    sync();
 
     // ============================================================
-    // PATH A: Normalized Face Profile (1024 segments)
-    // Hidden reference shape — stored for Phase 3 morphing.
+    // PATH BUILDERS — one per state
+    // Each writes directly into a target path's segments[i].point
+    // ============================================================
+
+    function buildIdle(path, t) {
+        var breath = Math.sin(t * Math.PI * 0.4) * 8;
+        for (var i = 0; i < N; i++) {
+            path.segments[i].point.x = pathA.segments[i].point.x;
+            path.segments[i].point.y = pathA.segments[i].point.y + breath;
+        }
+    }
+
+    function buildThinking(path, t) {
+        // Lissajous figure-eight (a=1, b=2) — rotates over time
+        var rx = W  * 0.28;
+        var ry = H * 0.22;
+        for (var i = 0; i < N; i++) {
+            var theta = (i / N) * Math.PI * 2;
+            path.segments[i].point.x = CX + rx * Math.sin(1 * theta + t * 0.6);
+            path.segments[i].point.y = CY + ry * Math.sin(2 * theta + t * 0.3);
+        }
+    }
+
+    function buildSpeaking(path, t, audioData) {
+        var dx  = W / N;
+        var amp = H * 0.35;
+        if (audioData) {
+            // Real mic audio if available
+            for (var i = 0; i < N; i++) {
+                path.segments[i].point.x = i * dx;
+                path.segments[i].point.y = CY + ((audioData[i] - 128) / 128.0) * amp;
+            }
+        } else {
+            // Simulated multi-harmonic speech waveform
+            for (var i = 0; i < N; i++) {
+                path.segments[i].point.x = i * dx;
+                path.segments[i].point.y = CY
+                    + Math.sin(i * 0.050 + t * 3.1) * amp * 0.55
+                    + Math.sin(i * 0.110 + t * 7.3) * amp * 0.25
+                    + Math.sin(i * 0.028 + t * 1.7) * amp * 0.20;
+            }
+        }
+    }
+
+    function buildListening(path, t) {
+        // Receptive horizon: flat line with very gentle sine ripple
+        var dx  = W / N;
+        var amp = H * 0.025;
+        for (var i = 0; i < N; i++) {
+            path.segments[i].point.x = i * dx;
+            path.segments[i].point.y = CY + Math.sin(i * 0.12 + t * 1.8) * amp;
+        }
+    }
+
+    function buildSuccess(path) {
+        // Harmonic Bloom: symmetrical upward-facing arc
+        var dx  = W / N;
+        var amp = H * 0.18;
+        for (var i = 0; i < N; i++) {
+            var nx = (i / (N - 1)) - 0.5;         // -0.5 → 0.5
+            path.segments[i].point.x = i * dx;
+            path.segments[i].point.y = CY - amp * (1 - 4 * nx * nx); // upward parabola
+        }
+    }
+
+    function buildError(path, t) {
+        // Jagged Static: sawtooth with erratic noise
+        var dx  = W / N;
+        var amp = H * 0.09;
+        for (var i = 0; i < N; i++) {
+            var saw = ((i % 24) / 24) * 2 - 1;
+            path.segments[i].point.x = i * dx;
+            path.segments[i].point.y = CY + saw * amp * (0.5 + 0.5 * Math.sin(t * 22 + i * 0.4));
+        }
+    }
+
+    // ============================================================
+    // PATH A — Normalized Face Profile (1024 pts, hidden)
     // ============================================================
     var facePathData = [
         "M 0,-150",
@@ -23,111 +108,173 @@ window.onload = function () {
     var refPath = new Path(facePathData);
     refPath.visible = false;
     refPath.position = view.center;
-    refPath.scale((view.size.height * 0.7) / refPath.bounds.height);
+    refPath.scale((H * 0.7) / refPath.bounds.height);
 
     var pathA = new Path({ visible: false });
-    var totalLength = refPath.length;
+    var totalLen = refPath.length;
     for (var i = 0; i < N; i++) {
-        pathA.add(refPath.getPointAt((i / N) * totalLength));
+        pathA.add(refPath.getPointAt((i / N) * totalLen));
     }
     refPath.remove();
 
     // ============================================================
-    // PATH C: Rendered Output (the visible line)
-    // Phase 2: mirrors pathA in idle, switches to live waveform on mic.
-    // Phase 3: will become interpolate(pathA, pathB, factor) via TWEEN.js
+    // PATH B — Target shape (hidden, rebuilt every frame)
+    // PATH SNAP — snapshot of pathC at transition start
+    // PATH C — Rendered output (visible)
     // ============================================================
-    var pathC = new Path({
+    function makeSilentPath(visible) {
+        var p = new Path({ visible: !!visible });
+        for (var i = 0; i < N; i++) {
+            p.add(pathA.segments[i].point.clone());
+        }
+        return p;
+    }
+
+    var pathB    = makeSilentPath(false);
+    var pathSnap = makeSilentPath(false);
+    var pathC    = new Path({
         strokeColor: '#C5A47E',
         strokeWidth: 2.5,
-        strokeCap: 'round',
-        strokeJoin: 'round'
+        strokeCap:   'round',
+        strokeJoin:  'round'
     });
-
-    // Initialize pathC as a copy of the face profile
     for (var i = 0; i < N; i++) {
         pathC.add(pathA.segments[i].point.clone());
     }
 
     // ============================================================
-    // WEB AUDIO PIPELINE
-    // fftSize=2048 → frequencyBinCount=1024 → 1 bin per path segment
-    // Uses getByteTimeDomainData() — waveform amplitude, not EQ bars
+    // STATE MACHINE
     // ============================================================
-    var analyser   = null;
-    var dataArray  = null;
-    var isListening = false;
+    var machine = {
+        state:        'idle',
+        factor:       1.0,
+        startTime:    0,
+        autoTimer:    null
+    };
 
-    function startAudio() {
-        if (isListening) return;
+    var TRANSITION_MS = 400;
 
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-            .then(function (stream) {
-                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                var source   = audioCtx.createMediaStreamSource(stream);
+    function snapshotC() {
+        for (var i = 0; i < N; i++) {
+            pathSnap.segments[i].point.x = pathC.segments[i].point.x;
+            pathSnap.segments[i].point.y = pathC.segments[i].point.y;
+        }
+    }
 
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 2048;            // frequencyBinCount → 1024
-                analyser.smoothingTimeConstant = 0.85; // smooths out noise jitter
+    function transitionTo(newState) {
+        if (machine.state === newState && machine.factor >= 1) return;
+        if (machine.autoTimer) { clearTimeout(machine.autoTimer); machine.autoTimer = null; }
 
-                source.connect(analyser);
-                dataArray = new Uint8Array(analyser.frequencyBinCount); // 1024 bytes
+        machine.state     = newState;
+        machine.factor    = 0;
+        machine.startTime = 0; // set on first frame
 
-                isListening = true;
-                if (startPrompt) { startPrompt.remove(); startPrompt = null; }
-            })
-            .catch(function (err) {
-                console.error('Mic access denied:', err);
-            });
+        snapshotC();
+
+        // Auto-return to idle after transient states
+        if (newState === 'success' || newState === 'error') {
+            machine.autoTimer = setTimeout(function () { transitionTo('idle'); }, 2000);
+        }
     }
 
     // ============================================================
-    // START PROMPT
-    // Web Audio API requires a user gesture before context creation.
+    // SSE — receive state events from server
     // ============================================================
-    var startPrompt = new PointText({
-        point: new Point(view.center.x, view.center.y + view.size.height * 0.38),
-        content: '[ tap to activate ]',
-        fillColor: new Color(0.77, 0.64, 0.49, 0.45),
-        fontFamily: 'monospace',
-        fontSize: 13,
+    function connectSSE() {
+        var src = new EventSource('/events');
+        src.onmessage = function (e) {
+            try {
+                var data = JSON.parse(e.data);
+                if (data.state) transitionTo(data.state);
+            } catch (_) {}
+        };
+        src.onerror = function () {
+            src.close();
+            setTimeout(connectSSE, 3000); // reconnect
+        };
+    }
+    connectSSE();
+
+    // ============================================================
+    // WEB AUDIO — optional, enhances speaking state with real audio
+    // ============================================================
+    var analyser  = null;
+    var dataArray = null;
+    var micActive = false;
+
+    function startMic() {
+        if (micActive) return;
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+            .then(function (stream) {
+                var ctx    = new (window.AudioContext || window.webkitAudioContext)();
+                var source = ctx.createMediaStreamSource(stream);
+                analyser   = ctx.createAnalyser();
+                analyser.fftSize              = 2048;
+                analyser.smoothingTimeConstant = 0.85;
+                source.connect(analyser);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                micActive = true;
+                if (micPrompt) { micPrompt.remove(); micPrompt = null; }
+            })
+            .catch(function () {});
+    }
+
+    var micPrompt = new PointText({
+        point:         new Point(CX, CY + H * 0.42),
+        content:       '[ tap to enable mic ]',
+        fillColor:     new Color(0.77, 0.64, 0.49, 0.35),
+        fontFamily:    'monospace',
+        fontSize:      12,
         justification: 'center'
     });
 
-    view.element.addEventListener('click',      startAudio);
-    view.element.addEventListener('touchstart', startAudio, { passive: true });
+    view.element.addEventListener('click',      startMic);
+    view.element.addEventListener('touchstart', startMic, { passive: true });
 
     // ============================================================
     // RENDER LOOP
     // ============================================================
-    var baseY = view.center.y;
-
     view.onFrame = function (event) {
-        var W = view.size.width;
-        var H = view.size.height;
+        sync();
 
-        if (isListening && analyser) {
-            // --- LISTENING STATE: Live Oscilloscope ---
-            // Pull time-domain waveform: 1024 bytes, 0–255, silence = 128
+        var t = event.time;
+
+        // ── Advance transition factor (cubic ease-in-out) ────────
+        if (machine.factor < 1) {
+            if (machine.startTime === 0) machine.startTime = t;
+            var elapsed = (t - machine.startTime) / (TRANSITION_MS / 1000);
+            var x = Math.min(elapsed, 1);
+            // cubic ease-in-out
+            machine.factor = x < 0.5
+                ? 4 * x * x * x
+                : 1 - Math.pow(-2 * x + 2, 3) / 2;
+            if (x >= 1) { machine.factor = 1; }
+        }
+
+        // ── Build pathB for current state ───────────────────────
+        var liveAudio = null;
+        if (micActive && analyser && machine.state === 'speaking') {
             analyser.getByteTimeDomainData(dataArray);
+            liveAudio = dataArray;
+        }
 
-            var dx        = W / N;
-            var amplitude = H * 0.4; // waveform spans ±40% of screen height
+        switch (machine.state) {
+            case 'idle':      buildIdle(pathB, t);                break;
+            case 'thinking':  buildThinking(pathB, t);            break;
+            case 'speaking':  buildSpeaking(pathB, t, liveAudio); break;
+            case 'listening': buildListening(pathB, t);           break;
+            case 'success':   buildSuccess(pathB);                break;
+            case 'error':     buildError(pathB, t);               break;
+            default:          buildIdle(pathB, t);                break;
+        }
 
-            for (var i = 0; i < N; i++) {
-                // x: evenly spaced across full canvas width
-                pathC.segments[i].point.x = i * dx;
-                // y: centered at H/2, scaled by audio amplitude
-                // silence (128) → 0 offset → dead center
-                pathC.segments[i].point.y = baseY + ((dataArray[i] - 128) / 128.0) * amplitude;
-            }
-
+        // ── Render pathC ─────────────────────────────────────────
+        if (machine.factor < 1) {
+            pathC.interpolate(pathSnap, pathB, machine.factor);
         } else {
-            // --- IDLE STATE: Face Profile + 0.2Hz Breathing ---
-            var breathOffset = Math.sin(event.time * Math.PI * 0.4) * 8;
             for (var i = 0; i < N; i++) {
-                pathC.segments[i].point.x = pathA.segments[i].point.x;
-                pathC.segments[i].point.y = pathA.segments[i].point.y + breathOffset;
+                pathC.segments[i].point.x = pathB.segments[i].point.x;
+                pathC.segments[i].point.y = pathB.segments[i].point.y;
             }
         }
     };

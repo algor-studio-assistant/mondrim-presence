@@ -22,19 +22,42 @@
 
 ---
 
-## Phase 3: State Machine & Morphing
+## Phase 3: State Machine & Morphing ✅ COMPLETE
 > Branch: `feature/phase-3`
-- [ ] Set up three-path memory architecture (Path A = Face, Path B = Target, Path C = Output)
-- [ ] Implement State Machine (7 states: Idle, Listening, Processing, Speaking, Success, Error, Interruption)
-- [ ] Integrate TWEEN.js for factor animation (0.0→1.0, ~400ms, exponential ease-in-out)
-- [ ] Implement `PathC.interpolate(PathA, PathB, factor)` on every frame
-- [ ] Apply `PathC.smooth({ type: 'catmull-rom', factor: 0.5 })` on every frame
-- [ ] Implement Idle breathing (0.2Hz vertical oscillation + Perlin noise drift)
-- [ ] Implement Listening state (Receptive Horizon — flat line with ambient ripples)
-- [ ] Implement Processing state (Lissajous Knot — figure-eight, rotation speed ∝ load)
-- [ ] Implement Speaking state (live oscilloscope from getByteTimeDomainData)
-- [ ] Implement Interruption/Yield (50ms exponential dampening → Listening)
-- [ ] Git commit to `feature/phase-3`
+> **Architecture change (2026-02-19):** Avatar is AI-state-driven, not mic-driven.
+> The face is a window into Mondrim's internal state — visible even without mic/audio.
+> State is pushed from the AI/backend via SSE. Mic enhances speaking state if available.
+
+### Server Upgrades
+- [x] Upgrade serve.py: add SSE endpoint (`GET /events`) — pushes state to browser in real-time
+- [x] Upgrade serve.py: add state endpoint (`POST /state`) — AI pushes state here
+- [x] Use ThreadingHTTPServer for concurrent SSE connections
+- [x] On SSE connect: immediately emit current state (browser gets state on page load)
+- [x] Add `push-state.sh` helper script for testing from CLI
+
+### Client: Three-Path Architecture
+- [x] Path A: Face Profile (hidden, stored — source shape for morphing)
+- [x] Path B: Target Shape (hidden, dynamically built per state every frame)
+- [x] PathSnapshot: snapshot of pathC at transition start (for interpolate `from`)
+- [x] Path C: Rendered output (visible — result of interpolate or live pathB)
+
+### Client: State Machine (7 states)
+- [x] `idle` → Face profile + 0.2Hz breathing
+- [x] `thinking` → Lissajous Knot (figure-eight, a=1 b=2, rotates over time)
+- [x] `speaking` → Simulated multi-harmonic waveform (or real mic audio if available)
+- [x] `listening` → Receptive Horizon (flat line + gentle sine ripple)
+- [x] `success` → Harmonic Bloom (upward arc, auto-returns to idle after 2s)
+- [x] `error` → Jagged Static (sawtooth + noise, auto-returns to idle after 2s)
+
+### Client: Morphing
+- [x] Cubic ease-in-out transition (400ms) — manual, no TWEEN.js dependency
+- [x] `pathC.interpolate(pathSnapshot, pathB, factor)` during transition
+- [x] Direct copy pathB → pathC when stable (factor = 1)
+- [x] SSE reconnect on drop (retry every 3s)
+
+### AI Integration
+- [x] State push from AI: `curl -sk -X POST https://100.83.203.41:8443/state -d '{"state":"thinking"}'`
+- [x] Git commit to `feature/phase-3`
 
 ---
 
