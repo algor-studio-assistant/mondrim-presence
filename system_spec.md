@@ -61,6 +61,45 @@ The SVG face outline has ~40 Bezier curves. Must be subdivided to exactly 1024 s
 
 ---
 
+## The Emotion Layer (Architecture Upgrade)
+> Decoupling internal state from visual representation.
+
+The "Emotion Layer" acts as an intermediate middleware.
+1. **Source (The AI):** Emits a high-level intent: `{"state": "speaking", "emotion": "curious", "intensity": 0.8}`.
+2. **Translation (The Layer):** Maps that intent to a set of **Parametric Overrides**:
+   - `amplitude_multiplier`: 1.2
+   - `frequency_shift`: +0.4
+   - `tension`: 0.15
+   - `asymmetry`: 0.3
+   - `glitch_factor`: 0.0
+3. **Sink (The Frontend):** Applies these physical constants to whatever path is being drawn (Face, Waveform, or Knot).
+
+---
+
+## Expanded State & Emotion Library
+
+### 1. Cognitive States (How I'm thinking)
+- **`searching` (The Radar):** Vertical scan line sweeping left-to-right across the face profile.
+- **`focused` (The Core):** Fast-rotating, high-symmetry geometric core.
+- **`confused` (The Stutter):** Dual mismatched sine waves (beat frequency interference).
+
+### 2. Emotional States (How I'm feeling)
+- **`curious` (The Tilt):** Asymmetrical amplitude + upward brow shift.
+- **`amused` (The Jiggle):** High-frequency, low-amplitude rhythmic bounce.
+- **`annoyed` (The Jitter):** High tension + low-amplitude jagged spikes.
+- **`empathetic` (The Fluid):** Low tension + very slow, viscous delayed easing.
+
+### 3. Meta / Witty States (Mondrim specific)
+- **`glitch` (The Smirk):** One-sided 50ms stutter/snap.
+- **`deconstructing` (The Truth):** Path temporarily breaks into raw 1024 dots.
+
+### 4. System States (The Machine)
+- **`booting`:** Unfolding from a single point to a face.
+- **`sleep`:** Horizontal thread with 0.1Hz pulse.
+- **`offline`:** Static flat line.
+
+---
+
 ## Expression Library (Parametric Mapping)
 
 | Parameter | Property | Psychological Meaning |

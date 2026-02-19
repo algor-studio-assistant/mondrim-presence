@@ -61,18 +61,14 @@
 
 ---
 
-## Phase 4: Emotional Modifiers & Expression Library
+## Phase 4: The Emotion Layer & Expanded Library ← NEXT
 > Branch: `feature/phase-4`
-- [ ] Implement parametric control system (Amplitude, Frequency, Tension, Easing)
-- [ ] Emotion preset: Curiosity (asymmetric amplitude, pause easing at peak)
-- [ ] Emotion preset: Confusion (beat frequency interference — dual mismatched sine waves)
-- [ ] Emotion preset: Agreement/Comprehension (symmetrical low-freq harmonic, instant settle)
-- [ ] Emotion preset: Empathy (very low amp/freq, viscous delayed easing)
-- [ ] Personality: Dry Wit Glitch (50ms Tension=0.9 stutter before sarcastic reply)
-- [ ] Personality: Machine Self (deconstruct to raw points on self-deprecating jokes)
-- [ ] Implement Success state (Harmonic Bloom — upward arc → Idle)
-- [ ] Implement Error state (Jagged Static — sawtooth, erratic frequency)
-- [ ] Conversational micro-behaviors: Backchannel Nod (ripple on 500–1500ms pause)
-- [ ] Conversational micro-behaviors: Anticipation Gap (freq 0.2→0.5Hz on intent-incomplete pause)
-- [ ] Emotion tagging hook from LLM pipeline (`{ emotion: "sarcasm" }` etc.)
+- [ ] Implement Parametric Override System (Physics variables for Amp, Freq, Tension, Asymmetry)
+- [ ] Build the "Emotion Layer" translation map (Emotion → Physics)
+- [ ] Implement Cognitive states: `searching`, `focused`, `confused`
+- [ ] Implement Emotional states: `curious`, `amused`, `annoyed`, `empathetic`
+- [ ] Implement Meta states: `glitch` (smirk), `deconstructing` (raw points)
+- [ ] Implement System states: `booting`, `sleep`, `offline`
+- [ ] Implement intensity scaling (0.0 → 1.0) for all emotional parameters
+- [ ] Update `push-state.sh` to support emotion and intensity parameters
 - [ ] Git commit to `feature/phase-4`
