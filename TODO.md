@@ -8,15 +8,17 @@
 
 ---
 
-## Phase 2: Audio Pipeline
+## Phase 2: Audio Pipeline ✅ COMPLETE
 > Branch: `feature/phase-2`
-- [ ] Initialize Web Audio API context (user gesture required)
-- [ ] Request microphone input (`getUserMedia`)
-- [ ] Connect mic stream → `AnalyserNode` (fftSize = **2048** → frequencyBinCount = 1024)
-- [ ] Use `getByteTimeDomainData()` (NOT getByteFrequencyData — we need waveform, not EQ)
-- [ ] Map 1024 bytes to canvas coordinates (Δx = width/1024, y normalized from 0–255 range)
-- [ ] Update `path.segments[i].point.y` in `view.onFrame` loop (no path destroy/recreate)
-- [ ] Git commit to `feature/phase-2`
+- [x] Initialize Web Audio API context (user gesture required)
+- [x] Request microphone input (`getUserMedia`)
+- [x] Connect mic stream → `AnalyserNode` (fftSize = **2048** → frequencyBinCount = 1024)
+- [x] Use `getByteTimeDomainData()` (NOT getByteFrequencyData — we need waveform, not EQ)
+- [x] Map 1024 bytes to canvas coordinates (Δx = width/1024, y centered at H/2, amplitude = H×0.4)
+- [x] Update `path.segments[i].point.y` in `view.onFrame` loop (no path destroy/recreate)
+- [x] smoothingTimeConstant = 0.85 (reduces noise jitter)
+- [x] Idle breathing preserved when mic is inactive
+- [x] Git commit to `feature/phase-2`
 
 ---
 
