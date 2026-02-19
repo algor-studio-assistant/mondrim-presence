@@ -9,8 +9,8 @@ import os
 
 HOST = "100.83.203.41"
 PORT = 8443
-CERT = "/tmp/ts.crt"
-KEY  = "/tmp/ts.key"
+CERT = "/etc/mondrim/ts.crt"
+KEY  = "/etc/mondrim/ts.key"
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
